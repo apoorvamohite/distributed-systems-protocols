@@ -11,6 +11,16 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.TimeUnit;
 
 import java.util.ArrayList;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
+import edu.sjsu.cs249.abd.Grpc.*;
+import java.util.Map;
+import java.util.Map.Entry;
+import java.util.List;
+import java.util.Objects;
+
+import static java.util.concurrent.TimeUnit.SECONDS;
 
 public class Main {
 
@@ -21,7 +31,7 @@ public class Main {
     // Multi threaded broadcast?
     // What if I don't get (n+1)/2 acks for a write? How to revert the written values on the minority processes? -> (n+1)/2 failure assumption
     // Why single writer?
-    public static final int TIMEOUT = 10;
+    public static final int TIMEOUT = 3;
 
     public static void main(String[] args) {
         System.exit(new CommandLine(new Cli()).execute(args));
@@ -57,56 +67,38 @@ public class Main {
         @Command
         public void read(@Parameters(paramLabel = "register") String register) {
             ArrayList<String[]> servers = getServerList(serverPorts);
-            Long maxLabel = 0L;
-            Long maxValue = 0L;
-            int minAcks = (int) Math.ceil((servers.size()+1)/2);
-            int acks = 0;
+            int minAcks = (int) Math.ceil((servers.size()+1.0)/2.0);
+            List<ABDServiceGrpc.ABDServiceBlockingStub> stubs = new ArrayList<>();
             for (String[] server : servers) {
-                System.out.printf("Going to read %s from %s at %s\n", register, server[0], server[1]);
-                var stub = getStub(server[0] + ":" + server[1]);
-
-                try {
-                    var resp = stub.withDeadlineAfter(TIMEOUT, TimeUnit.SECONDS)
-                            .read1(Grpc.Read1Request.newBuilder().setAddr(Long.valueOf(register)).build());
-                    System.out.printf("Read1Response from server %s:%s :\nRC: %d\nLabel: %d\nValue: %d\n", server[0],
-                            server[1], resp.getRc(), resp.getLabel(), resp.getValue());
-                    if (resp.getLabel() > maxLabel) {
-                        maxLabel = resp.getLabel();
-                        maxValue = resp.getValue();
-                    }
-                    acks++;
-                } catch (StatusRuntimeException sre) {
-                    System.out.printf("Failed to get a Read1Response from %s:%s, %s", server[0], server[1],
-                            sre.getMessage());
-                }
+                stubs.add(getStub(server[0] + ":" + server[1]));
             }
-            if(acks < minAcks || maxLabel == 0L){
-                System.out.printf("Read1 FAILED!");
+            var read1 = Read1Request.newBuilder().setAddr(Long.valueOf(register)).build();
+            var results = stubs.stream().parallel().map(noe(s -> Map.entry(s, s.withDeadlineAfter(TIMEOUT, SECONDS).read1(read1)))).filter(Objects::nonNull).collect(Collectors.toMap(Entry::getKey, Entry::getValue));
+            if(results.size() < minAcks){
+                System.out.println("failed");
                 return;
             }
-            minAcks = (int) Math.ceil((servers.size()+1)/2);
-            acks = 0;
-            for (String[] server : servers) {
-                System.out.printf("\nGoing to read2 %s from %s at %s\n", register, server[0], server[1]);
-                var stub = getStub(server[0] + ":" + server[1]);
-                try {
-                    var resp = stub.withDeadlineAfter(TIMEOUT, TimeUnit.SECONDS).read2(Grpc.Read2Request.newBuilder()
-                            .setAddr(Long.valueOf(register))
-                            .setLabel(maxLabel)
-                            .setValue(maxValue)
-                            .build());
-                    System.out.printf("\nRead2Response from server %s:%s received", server[0], server[1]);
-                    acks++;
-                } catch (StatusRuntimeException sre) {
-                    System.out.printf("Failed to get a Read2Response from %s:%s, %s", server[0], server[1],
-                            sre.getMessage());
+            long maxLabel = 0L;
+            long maxValue = 0L;
+            for(Read1Response resp : results.values()){
+                if (resp.getLabel() > maxLabel) {
+                    maxLabel = resp.getLabel();
+                    maxValue = resp.getValue();
                 }
             }
-            if(acks >= minAcks){
-                System.out.printf("Read2 SUCCESS!");
+            if(maxLabel == 0L){
+                System.out.println("failed");
+                return;
+            }
+
+            var read2 = Read2Request.newBuilder().setAddr(Long.valueOf(register)).setLabel(maxLabel).setValue(maxValue).build();
+            var results2 = stubs.stream().parallel().map(noe(s -> Map.entry(s, s.withDeadlineAfter(TIMEOUT, SECONDS).read2(read2)))).filter(Objects::nonNull).collect(Collectors.toMap(Entry::getKey, Entry::getValue));
+
+            if(results2.size() >= minAcks){
+                // System.out.printf("Read2 SUCCESS!");
                 System.out.printf("%d(%d)", maxValue, maxLabel);
             } else {
-                System.out.println("Read FAILED!");
+                System.out.println("failed");
             }
 
         }
@@ -115,25 +107,29 @@ public class Main {
         public void write(@Parameters(paramLabel = "register") String register,
                 @Parameters(paramLabel = "value") String value) {
             ArrayList<String[]> servers = getServerList(serverPorts);
-            int minAcks = (int) Math.ceil((servers.size()+1)/2);
-            int acks = 0;
+            int minAcks = (int) Math.ceil((servers.size()+1.0)/2.0);
+            List<ABDServiceGrpc.ABDServiceBlockingStub> stubs = new ArrayList<>();
             for (String[] server : servers) {
-                System.out.printf("Going to write %s to %s on %s\n", value, register, serverPorts);
-                var stub = getStub(server[0] + ":" + server[1]);
+                stubs.add(getStub(server[0] + ":" + server[1]));
+            }
+            var wreq = WriteRequest.newBuilder().setAddr(Long.valueOf(register)).setLabel(System.currentTimeMillis()).setValue(Long.valueOf(value)).build();
+            var results = stubs.stream().parallel().map(noe(s -> Map.entry(s, s.withDeadlineAfter(TIMEOUT, SECONDS).write(wreq)))).filter(Objects::nonNull).collect(Collectors.toMap(Entry::getKey, Entry::getValue));
+            if(results.size() >= minAcks){
+                System.out.printf("success");
+            } else {
+                System.out.printf("failure");
+            }
+        }
+
+        private <R> Function<ABDServiceGrpc.ABDServiceBlockingStub, R> noe(Function<ABDServiceGrpc.ABDServiceBlockingStub, R> func) {
+            return o -> {
                 try {
-                    var resp = stub.withDeadlineAfter(TIMEOUT, TimeUnit.SECONDS)
-                            .write(Grpc.WriteRequest.newBuilder().setAddr(Long.valueOf(register))
-                                    .setLabel(System.currentTimeMillis()).setValue(Long.valueOf(value)).build());
-                    System.out.printf("WriteResponse from %s:%s received", server[0], server[1]);
-                    acks++;
-                } catch (StatusRuntimeException sre) {
-                    System.out.printf("Failed to get a WriteResponse from %s:%s, %s", server[0], server[1],
-                            sre.getMessage());
+                    return func.apply(o);
+                } catch (Exception e) {
+                    // debug("Skipping {0}", o.getChannel().authority());
                 }
-            }
-            if(acks >= minAcks){
-                System.out.printf("Write SUCCESS!");
-            }
+                return null;
+            };
         }
 
         @Command
