@@ -1,7 +1,6 @@
 package edu.sjsu.cs249.zooleader;
 
 import java.io.IOException;
-import java.util.Map;
 
 import org.apache.zookeeper.CreateMode;
 import org.apache.zookeeper.KeeperException;

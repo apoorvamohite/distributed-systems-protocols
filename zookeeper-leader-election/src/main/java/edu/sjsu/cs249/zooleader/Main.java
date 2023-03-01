@@ -1,31 +1,16 @@
 package edu.sjsu.cs249.zooleader;
 
 import io.grpc.*;
-import io.grpc.stub.StreamObserver;
-import io.grpc.stub.StreamObservers;
 import picocli.CommandLine;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Parameters;
 
 import java.util.concurrent.Callable;
-import java.util.concurrent.TimeUnit;
-
-import java.util.ArrayList;
-import java.util.function.Function;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import edu.sjsu.cs249.zooleader.Grpc.GetLunchRequest;
 import edu.sjsu.cs249.zooleader.Grpc.GoingToLunchRequest;
 import edu.sjsu.cs249.zooleader.Grpc.LunchesAttendedRequest;
 import edu.sjsu.cs249.zooleader.Grpc.SkipRequest;
-
-import java.util.Map;
-import java.util.Map.Entry;
-import java.util.List;
-import java.util.Objects;
-
-import static java.util.concurrent.TimeUnit.SECONDS;
 
 public class Main {
     // TODO:
@@ -33,8 +18,6 @@ public class Main {
     // When node starts up when readyforlunch already created, does it signup for
     // lunch?
     // What is SkipRequest?
-
-    public static final int TIMEOUT = 3;
 
     public static void main(String[] args) {
         System.exit(new CommandLine(new Cli()).execute(args));

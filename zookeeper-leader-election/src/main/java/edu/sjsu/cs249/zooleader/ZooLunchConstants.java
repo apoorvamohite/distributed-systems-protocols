@@ -5,6 +5,7 @@ public class ZooLunchConstants {
     public static final String LEADER = "/leader";
     public static final String LUNCH_TIME = "/lunchtime";
     public static final String ZK_PREFIX = "/zk-";
+    public static final String ZK_PREFIX_2 = "zk-";
     public static final String EMPLOYEE = "/employee";
     public static final String UTF_8 = "UTF-8";
     public static final String RESTAURANT_NAME = "Apoorva's Kitchen";

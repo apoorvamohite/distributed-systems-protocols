@@ -42,8 +42,20 @@ public class DefaultWatcher implements Watcher {
                     zk.exists(lunchZnodePath + ZooLunchConstants.LUNCH_TIME, true);
                 } else if (event.getType() == EventType.NodeDeleted) {
                     // REMOVE Leader Watcher
-                    zk.exists(lunchZnodePath + ZooLunchConstants.LEADER, false);
-                    zk.exists(lunchZnodePath + ZooLunchConstants.ZK_PREFIX + zookeeperClientName, false);
+                    if (zk.exists(lunchZnodePath + ZooLunchConstants.LEADER, false) != null) {
+                        try {
+                            if ((new String(zk.getData(lunchZnodePath + ZooLunchConstants.LEADER, false, null),
+                                    ZooLunchConstants.UTF_8)).equals(zookeeperClientName)) {
+                                zk.delete(lunchZnodePath + ZooLunchConstants.LEADER, -1);
+                            }
+                        } catch (UnsupportedEncodingException e) {
+                            // TODO Auto-generated catch block
+                            e.printStackTrace();
+                        }
+                    }
+                    if (zk.exists(lunchZnodePath + ZooLunchConstants.ZK_PREFIX + zookeeperClientName, false) != null) {
+                        zk.delete(lunchZnodePath + ZooLunchConstants.ZK_PREFIX + zookeeperClientName, -1);
+                    }
                     zk.exists(lunchZnodePath + ZooLunchConstants.LUNCH_TIME, false);
                 }
                 if (event.getType() != EventType.DataWatchRemoved) {
@@ -63,9 +75,11 @@ public class DefaultWatcher implements Watcher {
                 if (event.getType() == EventType.NodeCreated) {
                     String leaderName = new String(zk.getData(lunchZnodePath + ZooLunchConstants.LEADER, false, null),
                             ZooLunchConstants.UTF_8);
+                            System.out.println("getChildren returns" + zk.getChildren(lunchZnodePath, false));
                     List<String> attendees = zk.getChildren(lunchZnodePath, false).stream()
-                            .filter(child -> child.startsWith(lunchZnodePath + ZooLunchConstants.ZK_PREFIX))
+                            .filter(child -> child.contains(ZooLunchConstants.ZK_PREFIX_2))
                             .collect(Collectors.toList());
+                    System.out.println("Attendees are: " + attendees);
                     if (leaderName.equals(zookeeperClientName)) {
                         Lunch lunch = new Lunch(true, leaderName, ZooLunchConstants.RESTAURANT_NAME, attendees);
                         System.out.println("Re-registering LunchTime");

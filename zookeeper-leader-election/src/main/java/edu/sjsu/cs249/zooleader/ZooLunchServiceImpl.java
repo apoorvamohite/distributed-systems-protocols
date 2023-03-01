@@ -1,28 +1,15 @@
 package edu.sjsu.cs249.zooleader;
 
-import java.io.File;
-import java.io.FileInputStream;
 import java.io.IOException;
-import java.io.ObjectInputStream;
 import java.io.UnsupportedEncodingException;
-import java.nio.file.Files;
-import java.nio.file.Paths;
 import java.util.ArrayList;
-import java.util.Collections;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 
-import org.apache.zookeeper.AddWatchMode;
-import org.apache.zookeeper.CreateMode;
 import org.apache.zookeeper.KeeperException;
 import org.apache.zookeeper.WatchedEvent;
 import org.apache.zookeeper.Watcher;
-import org.apache.zookeeper.ZooDefs;
 import org.apache.zookeeper.ZooKeeper;
 import org.apache.zookeeper.Watcher.Event.EventType;
-import org.apache.zookeeper.data.Stat;
-import org.checkerframework.common.returnsreceiver.qual.This;
 
 import edu.sjsu.cs249.zooleader.Grpc.ExitRequest;
 import edu.sjsu.cs249.zooleader.Grpc.ExitResponse;
@@ -175,6 +162,8 @@ public class ZooLunchServiceImpl extends ZooLunchImplBase {
                     }
                 }
                 zk.exists(lunchPath + ZooLunchConstants.LUNCH_TIME, false);
+                // zk.removeAllWatches(lunchPath + ZooLunchConstants.LUNCH_TIME, Watcher.WatcherType.Any, true);
+                // zk.removeAllWatches(lunchPath + ZooLunchConstants.LEADER, Watcher.WatcherType.Any, true);
                 zk.exists(lunchPath + ZooLunchConstants.READY_FOR_LUNCH, true);
             } else {
                 zk.removeAllWatches(lunchPath + ZooLunchConstants.READY_FOR_LUNCH, Watcher.WatcherType.Any, true);
