@@ -4,6 +4,7 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.ObjectInputStream;
+import java.io.UnsupportedEncodingException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.ArrayList;
@@ -19,6 +20,7 @@ import org.apache.zookeeper.WatchedEvent;
 import org.apache.zookeeper.Watcher;
 import org.apache.zookeeper.ZooDefs;
 import org.apache.zookeeper.ZooKeeper;
+import org.apache.zookeeper.Watcher.Event.EventType;
 import org.apache.zookeeper.data.Stat;
 import org.checkerframework.common.returnsreceiver.qual.This;
 
@@ -46,17 +48,18 @@ public class ZooLunchServiceImpl extends ZooLunchImplBase {
     public long counter = 0;
     public LunchDataStorageHelper dataStorageHelper;
     public ZooKeeper zk;
+    public String zookeeperClientName;
 
     public ZooLunchServiceImpl(String zookeeperServerAddr, String name, String zookeeperClientAddr,
             String lunchZnodePath) {
         super();
         try {
             lunchPath = lunchZnodePath;
-            name = name.replace(" ", "_");
+            zookeeperClientName = name.replace(" ", "_");
             dataStorageHelper = new LunchDataStorageHelper(zookeeperClientAddr);
-            zk = ZooKeeperHelper.connectToZooKeeperInstance(zookeeperServerAddr, lunchZnodePath, name,
+            zk = ZooKeeperHelper.connectToZooKeeperInstance(zookeeperServerAddr, lunchZnodePath, zookeeperClientName,
                     dataStorageHelper);
-            ZooKeeperHelper.createEmployeeNode(zk, name, zookeeperClientAddr);
+            ZooKeeperHelper.createEmployeeNode(zk, lunchZnodePath, zookeeperClientName, zookeeperClientAddr);
         } catch (IOException e) {
             // TODO Auto-generated catch block
             e.printStackTrace();
@@ -85,10 +88,7 @@ public class ZooLunchServiceImpl extends ZooLunchImplBase {
         GetLunchResponse.Builder rb;
         if (lunch.leader) {
             rb = GetLunchResponse.newBuilder().setRc(0).setLeader(lunch.leaderName).setRestaurant(lunch.restaurant);
-            int i = 0;
-            for (String attendee : lunch.attendees) {
-                rb.setAttendees(i++, attendee);
-            }
+            rb.addAllAttendees(lunch.attendees);
         } else {
             rb = GetLunchResponse.newBuilder().setRc(1);
         }
@@ -100,15 +100,48 @@ public class ZooLunchServiceImpl extends ZooLunchImplBase {
     @Override
     public void goingToLunch(GoingToLunchRequest request, StreamObserver<GoingToLunchResponse> responseObserver) {
         // TODO Auto-generated method stub
+        GoingToLunchResponse.Builder rb = GoingToLunchResponse.newBuilder();
         try {
-            System.out.println("getData call"+zk.exists("/lunch/readyforlunch", true));
+            // Lunch getting ready
+            if (zk.exists(lunchPath + ZooLunchConstants.READY_FOR_LUNCH, true) != null
+                    && zk.exists(lunchPath + ZooLunchConstants.LUNCH_TIME, true) == null) {
+                String leaderName = "";
+                try {
+                    leaderName = new String(zk.getData(lunchPath + ZooLunchConstants.LEADER, true, null), "UTF-8");
+                } catch (UnsupportedEncodingException e) {
+                    // TODO Auto-generated catch block
+                    e.printStackTrace();
+                }
+                if (leaderName.equals(zookeeperClientName)) {
+                    rb.setRc(0).setLeader(leaderName);
+                } else {
+                    rb.setRc(1);
+                }
+            } else {
+                Lunch lastLunch = dataStorageHelper.getLastLunch();
+                if (lastLunch != null) {
+                    if (lastLunch.leader) {
+                        rb.setRc(0).setLeader(lastLunch.leaderName).setRestaurant(lastLunch.restaurant);
+                        int i = 0;
+                        rb.addAllAttendees(lastLunch.attendees);
+                    } else {
+                        rb.setRc(1);
+                    }
+                } else {
+                    rb.setRc(1);
+                }
+            }
         } catch (KeeperException | InterruptedException e) {
             // TODO Auto-generated catch block
             e.printStackTrace();
         }
-        responseObserver.onNext(GoingToLunchResponse.newBuilder().setRc(1).build());
+        System.out.printf("goingToLunch() response: \nRC: %d\nLeader: %s\nRestaurant: %s", rb.getRc(), rb.getLeader(),
+                rb.getRestaurant());
+        for (int i = 0; i < rb.getAttendeesCount(); i++) {
+            System.out.println("Attendee 1: " + rb.getAttendees(i));
+        }
+        responseObserver.onNext(rb.build());
         responseObserver.onCompleted();
-        System.out.println("goingToLunch request complete");
     }
 
     @Override
@@ -118,10 +151,7 @@ public class ZooLunchServiceImpl extends ZooLunchImplBase {
         List<Long> zxids = new ArrayList<Long>(dataStorageHelper.lunchMap.keySet());
         LunchesAttendedResponse.Builder rb;
         rb = LunchesAttendedResponse.newBuilder();
-        int i = 0;
-        for (Long zxid : zxids) {
-            rb.setZxids(i++, zxid);
-        }
+        rb.addAllZxids(zxids);
         responseObserver.onNext(rb.build());
         responseObserver.onCompleted();
         System.out.println("lunchesAttended() returning: " + zxids);
@@ -130,7 +160,51 @@ public class ZooLunchServiceImpl extends ZooLunchImplBase {
     @Override
     public void skipLunch(SkipRequest request, StreamObserver<SkipResponse> responseObserver) {
         // TODO Auto-generated method stub
-        super.skipLunch(request, responseObserver);
+        try {
+            if (zk.exists(lunchPath + ZooLunchConstants.READY_FOR_LUNCH, false) != null
+                    && zk.exists(lunchPath + ZooLunchConstants.LUNCH_TIME, false) == null) {
+                if (zk.exists(lunchPath + ZooLunchConstants.ZK_PREFIX + zookeeperClientName, false) != null) {
+                    zk.delete(lunchPath + ZooLunchConstants.ZK_PREFIX + zookeeperClientName, -1);
+                }
+                if (zk.exists(lunchPath + ZooLunchConstants.LEADER, false) != null) {
+                    String leaderName = new String(
+                            zk.getData(lunchPath + ZooLunchConstants.LEADER, false, null),
+                            "UTF-8");
+                    if (leaderName.equals(zookeeperClientName)) {
+                        zk.delete(lunchPath + ZooLunchConstants.LEADER, -1);
+                    }
+                }
+                zk.exists(lunchPath + ZooLunchConstants.LUNCH_TIME, false);
+                zk.exists(lunchPath + ZooLunchConstants.READY_FOR_LUNCH, true);
+            } else {
+                zk.removeAllWatches(lunchPath + ZooLunchConstants.READY_FOR_LUNCH, Watcher.WatcherType.Any, true);
+                // zk.exists(lunchPath + ZooLunchConstants.READY_FOR_LUNCH, false);
+                zk.exists(lunchPath + ZooLunchConstants.READY_FOR_LUNCH, new Watcher() {
+
+                    @Override
+                    public void process(WatchedEvent event) {
+                        System.out.println("Skip Watcher");
+
+                        try {
+                            if (event.getType() == EventType.NodeCreated) {
+                                System.out.println("In created----------");
+                                zk.exists(lunchPath + ZooLunchConstants.READY_FOR_LUNCH, this);
+                            } else if (event.getType() == EventType.NodeDeleted) {
+                                System.out.println("In deleted -----------");
+                                zk.exists(lunchPath + ZooLunchConstants.READY_FOR_LUNCH, true);
+                            }
+                        } catch (KeeperException | InterruptedException e) {
+                            // TODO Auto-generated catch block
+                            e.printStackTrace();
+                        }
+                    }
+                });
+            }
+        } catch (KeeperException | InterruptedException | UnsupportedEncodingException e) {
+            e.printStackTrace();
+        }
+        responseObserver.onNext(SkipResponse.newBuilder().build());
+        responseObserver.onCompleted();
     }
 
 }
