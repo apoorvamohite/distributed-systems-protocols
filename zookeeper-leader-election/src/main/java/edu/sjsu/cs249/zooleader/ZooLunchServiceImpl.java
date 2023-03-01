@@ -6,8 +6,10 @@ import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.nio.file.Files;
 import java.nio.file.Paths;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 import org.apache.zookeeper.AddWatchMode;
@@ -38,9 +40,12 @@ public class ZooLunchServiceImpl extends ZooLunchImplBase {
     // TODO
     // Watch for changes in number of employees?
     // Watch for changes in leader
-    // Update Thread.sleep value
+    // Update Thread.sleep value after restart
+    // What to respond for goingToLunch()
     public String lunchPath;
     public long counter = 0;
+    public LunchDataStorageHelper dataStorageHelper;
+    public ZooKeeper zk;
 
     public ZooLunchServiceImpl(String zookeeperServerAddr, String name, String zookeeperClientAddr,
             String lunchZnodePath) {
@@ -48,44 +53,10 @@ public class ZooLunchServiceImpl extends ZooLunchImplBase {
         try {
             lunchPath = lunchZnodePath;
             name = name.replace(" ", "_");
-            LunchDataStorageHelper dataHelper = new LunchDataStorageHelper(zookeeperClientAddr);
-            ZooKeeper zk = ZooKeeperHelper.connectToZooKeeperInstance(zookeeperServerAddr, lunchZnodePath, name, dataHelper);
+            dataStorageHelper = new LunchDataStorageHelper(zookeeperClientAddr);
+            zk = ZooKeeperHelper.connectToZooKeeperInstance(zookeeperServerAddr, lunchZnodePath, name,
+                    dataStorageHelper);
             ZooKeeperHelper.createEmployeeNode(zk, name, zookeeperClientAddr);
-            // ZooKeeperHelper.tryLeader(zk, lunchPath, zookeeperClientAddr);
-            // Stat stat = zk.exists(lunchPath + "/employee/zk-apoorva", false);
-            // System.out.println("ZNode exists: " + stat);
-            // System.out.println(
-            // "ZNode data: " + new String(zk.getData(lunchPath + "/employee/zk-apoorva", false, null), "UTF-8"));
-            // if (zk.exists(lunchPath + "/readyforlunch", false)!=null) {
-
-            // try {
-            // zk.addWatch("/lunch", AddWatchMode.PERSISTENT);
-            // } catch (KeeperException e) {
-            // // TODO Auto-generated catch block
-            // System.out.println(e.getMessage()+e.getCause());
-            // e.printStackTrace();
-            // }
-            // }
-            // zk.exists(lunchPath + "/readyforlunch", (watchedEvent) -> {
-            // if(watchedEvent.getType() == Watcher.Event.EventType.NodeCreated){
-            // // try {
-            // // zk.create(lunchPath+"/zk-"+name, name.getBytes(),
-            // ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.EPHEMERAL);
-            // // Thread.sleep(counter);
-            // // // zk.exists(lunchPath+"/leader", (watchedLeaderEvent) -> {
-            // // // if(watchedLeaderEvent.getType() == Watcher.Event.EventType.NodeDeleted
-            // || watchedLeaderEvent.getType() == Watcher.Event.EventType.None)
-            // // // });
-            // // // zk.exists(lunchPath+"/leader", name.getBytes(),
-            // ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.EPHEMERAL);
-
-            // // } catch (KeeperException | InterruptedException e) {
-            // // // TODO Auto-generated catch block
-            // // e.printStackTrace();
-            // // }
-            // System.out.println("Ok, readyforlunch was created");
-            // }
-            // });
         } catch (IOException e) {
             // TODO Auto-generated catch block
             e.printStackTrace();
@@ -109,20 +80,51 @@ public class ZooLunchServiceImpl extends ZooLunchImplBase {
     @Override
     public void getLunch(GetLunchRequest request, StreamObserver<GetLunchResponse> responseObserver) {
         // TODO Auto-generated method stub
-        super.getLunch(request, responseObserver);
+        long zxid = request.getZxid();
+        Lunch lunch = dataStorageHelper.lunchMap.get(zxid);
+        GetLunchResponse.Builder rb;
+        if (lunch.leader) {
+            rb = GetLunchResponse.newBuilder().setRc(0).setLeader(lunch.leaderName).setRestaurant(lunch.restaurant);
+            int i = 0;
+            for (String attendee : lunch.attendees) {
+                rb.setAttendees(i++, attendee);
+            }
+        } else {
+            rb = GetLunchResponse.newBuilder().setRc(1);
+        }
+        responseObserver.onNext(rb.build());
+        responseObserver.onCompleted();
+        System.out.println("getLunch() returning: " + lunch);
     }
 
     @Override
     public void goingToLunch(GoingToLunchRequest request, StreamObserver<GoingToLunchResponse> responseObserver) {
         // TODO Auto-generated method stub
-        super.goingToLunch(request, responseObserver);
+        try {
+            System.out.println("getData call"+zk.exists("/lunch/readyforlunch", true));
+        } catch (KeeperException | InterruptedException e) {
+            // TODO Auto-generated catch block
+            e.printStackTrace();
+        }
+        responseObserver.onNext(GoingToLunchResponse.newBuilder().setRc(1).build());
+        responseObserver.onCompleted();
+        System.out.println("goingToLunch request complete");
     }
 
     @Override
     public void lunchesAttended(LunchesAttendedRequest request,
             StreamObserver<LunchesAttendedResponse> responseObserver) {
         // TODO Auto-generated method stub
-        super.lunchesAttended(request, responseObserver);
+        List<Long> zxids = new ArrayList<Long>(dataStorageHelper.lunchMap.keySet());
+        LunchesAttendedResponse.Builder rb;
+        rb = LunchesAttendedResponse.newBuilder();
+        int i = 0;
+        for (Long zxid : zxids) {
+            rb.setZxids(i++, zxid);
+        }
+        responseObserver.onNext(rb.build());
+        responseObserver.onCompleted();
+        System.out.println("lunchesAttended() returning: " + zxids);
     }
 
     @Override

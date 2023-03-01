@@ -14,6 +14,9 @@ import java.util.ArrayList;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+
+import edu.sjsu.cs249.zooleader.Grpc.GoingToLunchRequest;
+
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.List;
@@ -62,8 +65,9 @@ public class Main {
         String serverPorts;
 
         @Command
-        public void read(@Parameters(paramLabel = "register") String register) {
-            System.out.println("Hello from client read cli");
+        public void checkLunch() {
+            var stub = getStub(serverPorts);
+            System.out.println("response"+stub.goingToLunch(GoingToLunchRequest.newBuilder().build()));
         }
 
         @Command
@@ -90,13 +94,13 @@ public class Main {
         //             + stub.withDeadlineAfter(TIMEOUT, TimeUnit.SECONDS).exit(Grpc.ExitRequest.newBuilder().build()));
         // }
 
-        // private static ABDServiceGrpc.ABDServiceBlockingStub getStub(String serverAddr) {
-        //     var lastColon = serverAddr.lastIndexOf(':');
-        //     var host = serverAddr.substring(0, lastColon);
-        //     var port = Integer.parseInt(serverAddr.substring(lastColon + 1));
-        //     var channel = ManagedChannelBuilder.forAddress(host, port).usePlaintext().build();
-        //     return ABDServiceGrpc.newBlockingStub(channel);
-        // }
+        private static ZooLunchGrpc.ZooLunchBlockingStub getStub(String serverAddr) {
+            var lastColon = serverAddr.lastIndexOf(':');
+            var host = serverAddr.substring(0, lastColon);
+            var port = Integer.parseInt(serverAddr.substring(lastColon + 1));
+            var channel = ManagedChannelBuilder.forAddress(host, port).usePlaintext().build();
+            return ZooLunchGrpc.newBlockingStub(channel);
+        }
 
         // private static ArrayList<String[]> getServerList(String serverPorts) {
         //     ArrayList<String[]> res = new ArrayList<>();
