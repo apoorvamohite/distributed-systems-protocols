@@ -41,8 +41,9 @@ public class ZooLunchServiceImpl extends ZooLunchImplBase {
             String lunchZnodePath) {
         super();
         try {
+            // System.out.println("Main Thread Id: " + Thread.currentThread().threadId());
             lunchPath = lunchZnodePath;
-            zookeeperClientName = name.replace(" ", "_");
+            zookeeperClientName = ZooLunchConstants.ZK_PREFIX_2 + name.replace(" ", "_");
             dataStorageHelper = new LunchDataStorageHelper(zookeeperClientAddr);
             zk = ZooKeeperHelper.connectToZooKeeperInstance(zookeeperServerAddr, lunchZnodePath, zookeeperClientName,
                     dataStorageHelper);
@@ -81,7 +82,7 @@ public class ZooLunchServiceImpl extends ZooLunchImplBase {
         }
         responseObserver.onNext(rb.build());
         responseObserver.onCompleted();
-        System.out.println("getLunch() returning: " + lunch);
+        System.out.println("getLunch("+zxid+") returning: " + lunch);
     }
 
     @Override
@@ -147,24 +148,33 @@ public class ZooLunchServiceImpl extends ZooLunchImplBase {
     @Override
     public void skipLunch(SkipRequest request, StreamObserver<SkipResponse> responseObserver) {
         // TODO Auto-generated method stub
+        System.out.println("Got a skip request");
         try {
             if (zk.exists(lunchPath + ZooLunchConstants.READY_FOR_LUNCH, false) != null
                     && zk.exists(lunchPath + ZooLunchConstants.LUNCH_TIME, false) == null) {
-                if (zk.exists(lunchPath + ZooLunchConstants.ZK_PREFIX + zookeeperClientName, false) != null) {
-                    zk.delete(lunchPath + ZooLunchConstants.ZK_PREFIX + zookeeperClientName, -1);
-                }
-                if (zk.exists(lunchPath + ZooLunchConstants.LEADER, false) != null) {
-                    String leaderName = new String(
-                            zk.getData(lunchPath + ZooLunchConstants.LEADER, false, null),
-                            "UTF-8");
-                    if (leaderName.equals(zookeeperClientName)) {
-                        zk.delete(lunchPath + ZooLunchConstants.LEADER, -1);
+                zk.removeAllWatches(lunchPath + ZooLunchConstants.READY_FOR_LUNCH, Watcher.WatcherType.Any, true);
+                // zk.exists(lunchPath + ZooLunchConstants.READY_FOR_LUNCH, false);
+                zk.exists(lunchPath + ZooLunchConstants.READY_FOR_LUNCH, new Watcher() {
+
+                    @Override
+                    public void process(WatchedEvent event) {
+                        System.out.println("Skip Watcher");
+
+                        try {
+                            if (event.getType() == EventType.NodeCreated) {
+                                System.out.println("In created----------");
+                                zk.exists(lunchPath + ZooLunchConstants.READY_FOR_LUNCH, true);
+                            } else if (event.getType() == EventType.NodeDeleted) {
+                                System.out.println("In deleted -----------");
+                                zk.removeAllWatches(lunchPath + ZooLunchConstants.READY_FOR_LUNCH, Watcher.WatcherType.Any, true);
+                                zk.exists(lunchPath + ZooLunchConstants.READY_FOR_LUNCH, this);
+                            }
+                        } catch (KeeperException | InterruptedException e) {
+                            // TODO Auto-generated catch block
+                            e.printStackTrace();
+                        }
                     }
-                }
-                zk.exists(lunchPath + ZooLunchConstants.LUNCH_TIME, false);
-                // zk.removeAllWatches(lunchPath + ZooLunchConstants.LUNCH_TIME, Watcher.WatcherType.Any, true);
-                // zk.removeAllWatches(lunchPath + ZooLunchConstants.LEADER, Watcher.WatcherType.Any, true);
-                zk.exists(lunchPath + ZooLunchConstants.READY_FOR_LUNCH, true);
+                });
             } else {
                 zk.removeAllWatches(lunchPath + ZooLunchConstants.READY_FOR_LUNCH, Watcher.WatcherType.Any, true);
                 // zk.exists(lunchPath + ZooLunchConstants.READY_FOR_LUNCH, false);
@@ -189,7 +199,7 @@ public class ZooLunchServiceImpl extends ZooLunchImplBase {
                     }
                 });
             }
-        } catch (KeeperException | InterruptedException | UnsupportedEncodingException e) {
+        } catch (KeeperException | InterruptedException e) {
             e.printStackTrace();
         }
         responseObserver.onNext(SkipResponse.newBuilder().build());

@@ -38,7 +38,7 @@ public class ReadyForLunchWatcher implements Watcher {
                 System.out.println("Result of creating zk node" + res);
                 int numEmployees = zk.getChildren(lunchZnodePath + "/employee", false).size();
                 Thread.sleep(numEmployees - Math.min(numEmployees, dataStorageHelper.getLastLeadershipIndex()));
-                ZooKeeperHelper.tryLeader(zk, lunchZnodePath, zookeeperClientName);
+                // ZooKeeperHelper.tryLeader(zk, lunchZnodePath, zookeeperClientName);
                 // Register LunchTimeWatcher
                 zk.exists(lunchZnodePath + "/lunchtime", new LunchTimeWatcher(zk, lunchZnodePath, zookeeperClientName, dataStorageHelper));
             } else if (event.getType() == EventType.NodeDeleted) {

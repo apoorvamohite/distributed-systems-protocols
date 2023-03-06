@@ -22,7 +22,7 @@ public class LeaderWatcher implements Watcher {
         // TODO Auto-generated method stub
         try {
             if (event.getType() == EventType.NodeDeleted) {
-                ZooKeeperHelper.tryLeader(zk, lunchZnodePath, zookeeperClientName);
+                // ZooKeeperHelper.tryLeader(zk, lunchZnodePath, zookeeperClientName);
             }
 
             System.out.println("Re-registering LeaderWatcher");

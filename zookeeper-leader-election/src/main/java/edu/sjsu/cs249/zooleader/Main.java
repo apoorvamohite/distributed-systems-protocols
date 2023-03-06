@@ -28,7 +28,7 @@ public class Main {
         @Parameters(index = "0", arity = "0", description = "Zookeeper client name")
         String zookeeperClientName;
         @Parameters(index = "1", arity = "0", description = "Zookeeper client port number")
-        int serverPort;
+        String serverPort;
         @Parameters(index = "2", arity = "0", description = "Zookeeper server address")
         String zookeeperServerAddr;
         @Parameters(index = "3", arity = "0", description = "lunch znode path")
@@ -36,15 +36,17 @@ public class Main {
 
         @Override
         public Integer call() throws Exception {
+            int portNumber = Integer.parseInt(serverPort.split(":")[1]);
             Server server = ServerBuilder
-                    .forPort(serverPort)
+                    .forPort(portNumber)
                     .addService(new ZooLunchServiceImpl(zookeeperServerAddr, zookeeperClientName,
-                            "localhost:" + serverPort, lunchPath))
+                            serverPort, lunchPath))
                     .build();
 
-            System.out.printf("Zookeeper listening on %s %d %s\n", zookeeperClientName, serverPort,
+            System.out.printf("Zookeeper listening on %s %s %s\n", zookeeperClientName, serverPort,
                     zookeeperServerAddr);
             server.start();
+            // System.out.println("Server Thread Id: " + Thread.currentThread().threadId());
             server.awaitTermination();
             return 0;
         }

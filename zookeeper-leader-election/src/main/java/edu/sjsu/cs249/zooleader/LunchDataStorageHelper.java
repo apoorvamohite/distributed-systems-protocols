@@ -61,8 +61,11 @@ public class LunchDataStorageHelper {
                 ans = (i + 1);
             }
             i++;
+            // 1 2 3 4 5 6 7 8 9
         }
-        return ans == 0 ? Integer.MAX_VALUE : ans;
+        // System.out.println("lunchMap" + lunchMap.toString());
+        System.out.println("lunchMap.size()" + lunchMap.size() +" i: "+i +" ans: "+ans);
+        return ans == 0 ? Integer.MAX_VALUE : lunchMap.size() - ans;
     }
 
     public void sendToFile() {
