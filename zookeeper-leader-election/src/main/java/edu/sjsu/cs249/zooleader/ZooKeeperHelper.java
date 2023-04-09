@@ -84,7 +84,9 @@ public class ZooKeeperHelper {
             System.out.println("Sleeping for"
                     + (numEmployees - Math.min(numEmployees, dataStorageHelper.getLastLeadershipIndex()) + 1));
             System.out.println("last leadership" + dataStorageHelper.getLastLeadershipIndex());
-            Thread.sleep(Math.max(0, (numEmployees - Math.min(numEmployees, dataStorageHelper.getLastLeadershipIndex()) - 1)) * 1000);
+            Thread.sleep(
+                    Math.max(0, (numEmployees - Math.min(numEmployees, dataStorageHelper.getLastLeadershipIndex()) - 1))
+                            * 1000);
             // Thread.sleep(15000);
             Stat readyForLunchZxidAfter = zk.exists(lunchZnodePath + ZooLunchConstants.READY_FOR_LUNCH, true);
             if (readyForLunchZxidBefore != null && readyForLunchZxidAfter != null
@@ -96,6 +98,10 @@ public class ZooKeeperHelper {
                     (zookeeperClientName).getBytes(),
                     ZooDefs.Ids.OPEN_ACL_UNSAFE,
                     CreateMode.EPHEMERAL);
+            // zk.create(lunchZnodePath + ZooLunchConstants.LEADER,
+            //         (zookeeperClientName.substring(3)).getBytes(),
+            //         ZooDefs.Ids.OPEN_ACL_UNSAFE,
+            //         CreateMode.EPHEMERAL);
             System.out.println("Re-registering Leader");
             zk.exists(lunchZnodePath + ZooLunchConstants.LEADER, true);
         } catch (KeeperException e) {

@@ -91,21 +91,21 @@ public class ZooLunchServiceImpl extends ZooLunchImplBase {
         GoingToLunchResponse.Builder rb = GoingToLunchResponse.newBuilder();
         try {
             // Lunch getting ready
-            if (zk.exists(lunchPath + ZooLunchConstants.READY_FOR_LUNCH, true) != null
-                    && zk.exists(lunchPath + ZooLunchConstants.LUNCH_TIME, true) == null) {
-                String leaderName = "";
-                try {
-                    leaderName = new String(zk.getData(lunchPath + ZooLunchConstants.LEADER, true, null), "UTF-8");
-                } catch (UnsupportedEncodingException e) {
-                    // TODO Auto-generated catch block
-                    e.printStackTrace();
-                }
-                if (leaderName.equals(zookeeperClientName)) {
-                    rb.setRc(0).setLeader(leaderName);
-                } else {
-                    rb.setRc(1);
-                }
-            } else {
+            // if (zk.exists(lunchPath + ZooLunchConstants.READY_FOR_LUNCH, true) != null
+            //         && zk.exists(lunchPath + ZooLunchConstants.LUNCH_TIME, true) == null) {
+            //     String leaderName = "";
+            //     try {
+            //         leaderName = new String(zk.getData(lunchPath + ZooLunchConstants.LEADER, true, null), "UTF-8");
+            //     } catch (UnsupportedEncodingException e) {
+            //         // TODO Auto-generated catch block
+            //         e.printStackTrace();
+            //     }
+            //     if (leaderName.equals(zookeeperClientName)) {
+            //         rb.setRc(0).setLeader(leaderName);
+            //     } else {
+            //         rb.setRc(1);
+            //     }
+            // } else {
                 Lunch lastLunch = dataStorageHelper.getLastLunch();
                 if (lastLunch != null) {
                     if (lastLunch.leader) {
@@ -118,8 +118,9 @@ public class ZooLunchServiceImpl extends ZooLunchImplBase {
                 } else {
                     rb.setRc(1);
                 }
-            }
-        } catch (KeeperException | InterruptedException e) {
+            // }
+        // } catch (KeeperException | InterruptedException e) {
+        } catch (Exception e) {
             // TODO Auto-generated catch block
             e.printStackTrace();
         }
@@ -152,29 +153,21 @@ public class ZooLunchServiceImpl extends ZooLunchImplBase {
         try {
             if (zk.exists(lunchPath + ZooLunchConstants.READY_FOR_LUNCH, false) != null
                     && zk.exists(lunchPath + ZooLunchConstants.LUNCH_TIME, false) == null) {
-                zk.removeAllWatches(lunchPath + ZooLunchConstants.READY_FOR_LUNCH, Watcher.WatcherType.Any, true);
-                // zk.exists(lunchPath + ZooLunchConstants.READY_FOR_LUNCH, false);
-                zk.exists(lunchPath + ZooLunchConstants.READY_FOR_LUNCH, new Watcher() {
-
-                    @Override
-                    public void process(WatchedEvent event) {
-                        System.out.println("Skip Watcher");
-
-                        try {
-                            if (event.getType() == EventType.NodeCreated) {
-                                System.out.println("In created----------");
-                                zk.exists(lunchPath + ZooLunchConstants.READY_FOR_LUNCH, true);
-                            } else if (event.getType() == EventType.NodeDeleted) {
-                                System.out.println("In deleted -----------");
-                                zk.removeAllWatches(lunchPath + ZooLunchConstants.READY_FOR_LUNCH, Watcher.WatcherType.Any, true);
-                                zk.exists(lunchPath + ZooLunchConstants.READY_FOR_LUNCH, this);
-                            }
-                        } catch (KeeperException | InterruptedException e) {
-                            // TODO Auto-generated catch block
-                            e.printStackTrace();
-                        }
+                if (zk.exists(lunchPath + ZooLunchConstants.ZK_PREFIX + zookeeperClientName, false) != null) {
+                    zk.delete(lunchPath + ZooLunchConstants.ZK_PREFIX + zookeeperClientName, -1);
+                }
+                if (zk.exists(lunchPath + ZooLunchConstants.LEADER, false) != null) {
+                    String leaderName = new String(
+                            zk.getData(lunchPath + ZooLunchConstants.LEADER, false, null),
+                            "UTF-8");
+                    if (leaderName.equals(zookeeperClientName)) {
+                        zk.delete(lunchPath + ZooLunchConstants.LEADER, -1);
                     }
-                });
+                }
+                zk.exists(lunchPath + ZooLunchConstants.LUNCH_TIME, false);
+                // zk.removeAllWatches(lunchPath + ZooLunchConstants.LUNCH_TIME, Watcher.WatcherType.Any, true);
+                // zk.removeAllWatches(lunchPath + ZooLunchConstants.LEADER, Watcher.WatcherType.Any, true);
+                zk.exists(lunchPath + ZooLunchConstants.READY_FOR_LUNCH, true);
             } else {
                 zk.removeAllWatches(lunchPath + ZooLunchConstants.READY_FOR_LUNCH, Watcher.WatcherType.Any, true);
                 // zk.exists(lunchPath + ZooLunchConstants.READY_FOR_LUNCH, false);
@@ -199,9 +192,63 @@ public class ZooLunchServiceImpl extends ZooLunchImplBase {
                     }
                 });
             }
-        } catch (KeeperException | InterruptedException e) {
+        } catch (KeeperException | InterruptedException | UnsupportedEncodingException e) {
             e.printStackTrace();
         }
+        // dataStorageHelper.skipLunch = true;
+        // try {
+        //     if (zk.exists(lunchPath + ZooLunchConstants.READY_FOR_LUNCH, false) != null
+        //             && zk.exists(lunchPath + ZooLunchConstants.LUNCH_TIME, false) == null) {
+        //         zk.removeAllWatches(lunchPath + ZooLunchConstants.READY_FOR_LUNCH, Watcher.WatcherType.Any, true);
+        //         // zk.exists(lunchPath + ZooLunchConstants.READY_FOR_LUNCH, false);
+        //         zk.exists(lunchPath + ZooLunchConstants.READY_FOR_LUNCH, new Watcher() {
+
+        //             @Override
+        //             public void process(WatchedEvent event) {
+        //                 System.out.println("Skip Watcher");
+
+        //                 try {
+        //                     if (event.getType() == EventType.NodeCreated) {
+        //                         System.out.println("In created----------");
+        //                         zk.exists(lunchPath + ZooLunchConstants.READY_FOR_LUNCH, true);
+        //                     } else if (event.getType() == EventType.NodeDeleted) {
+        //                         System.out.println("In deleted -----------");
+        //                         zk.removeAllWatches(lunchPath + ZooLunchConstants.READY_FOR_LUNCH, Watcher.WatcherType.Any, true);
+        //                         zk.exists(lunchPath + ZooLunchConstants.READY_FOR_LUNCH, this);
+        //                     }
+        //                 } catch (KeeperException | InterruptedException e) {
+        //                     // TODO Auto-generated catch block
+        //                     e.printStackTrace();
+        //                 }
+        //             }
+        //         });
+        //     } else {
+        //         zk.removeAllWatches(lunchPath + ZooLunchConstants.READY_FOR_LUNCH, Watcher.WatcherType.Any, true);
+        //         // zk.exists(lunchPath + ZooLunchConstants.READY_FOR_LUNCH, false);
+        //         zk.exists(lunchPath + ZooLunchConstants.READY_FOR_LUNCH, new Watcher() {
+
+        //             @Override
+        //             public void process(WatchedEvent event) {
+        //                 System.out.println("Skip Watcher");
+
+        //                 try {
+        //                     if (event.getType() == EventType.NodeCreated) {
+        //                         System.out.println("In created----------");
+        //                         zk.exists(lunchPath + ZooLunchConstants.READY_FOR_LUNCH, this);
+        //                     } else if (event.getType() == EventType.NodeDeleted) {
+        //                         System.out.println("In deleted -----------");
+        //                         zk.exists(lunchPath + ZooLunchConstants.READY_FOR_LUNCH, true);
+        //                     }
+        //                 } catch (KeeperException | InterruptedException e) {
+        //                     // TODO Auto-generated catch block
+        //                     e.printStackTrace();
+        //                 }
+        //             }
+        //         });
+        //     }
+        // } catch (KeeperException | InterruptedException e) {
+        //     e.printStackTrace();
+        // }
         responseObserver.onNext(SkipResponse.newBuilder().build());
         responseObserver.onCompleted();
     }

@@ -16,6 +16,7 @@ import java.util.Map;
 public class LunchDataStorageHelper {
     public Map<Long, Lunch> lunchMap;
     private String filename;
+    public boolean skipLunch = false;
 
     public LunchDataStorageHelper(String zookeeperClientAddr) {
         try {
